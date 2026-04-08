@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Veeme/Veeme.Client/Veeme.Client.csproj" />
+  <Project Path="Veeme/Veeme/Veeme.csproj" />
+</Solution>

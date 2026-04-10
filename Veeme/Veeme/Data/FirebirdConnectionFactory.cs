@@ -1,6 +1,6 @@
+using System.Data;
 using FirebirdSql.Data.FirebirdClient;
 using Microsoft.Extensions.Options;
-using System.Data;
 using Veeme.Contracts;
 using Veeme.Models;
 
@@ -19,7 +19,9 @@ public sealed class FirebirdConnectionFactory : IFirebirdConnectionFactory
     {
         if (string.IsNullOrWhiteSpace(_options.Database))
         {
-            throw new InvalidOperationException("Configuração Firebird:Database não foi informada.");
+            throw new InvalidOperationException(
+                "Configuração Firebird:Database não foi informada."
+            );
         }
 
         if (string.IsNullOrWhiteSpace(_options.User))
@@ -29,7 +31,9 @@ public sealed class FirebirdConnectionFactory : IFirebirdConnectionFactory
 
         if (string.IsNullOrWhiteSpace(_options.Password))
         {
-            throw new InvalidOperationException("Configuração Firebird:Password não foi informada.");
+            throw new InvalidOperationException(
+                "Configuração Firebird:Password não foi informada."
+            );
         }
 
         var connectionStringBuilder = new FbConnectionStringBuilder
@@ -39,7 +43,7 @@ public sealed class FirebirdConnectionFactory : IFirebirdConnectionFactory
             Database = _options.Database,
             UserID = _options.User,
             Password = _options.Password,
-            Dialect = _options.Dialect
+            Dialect = _options.Dialect,
         };
 
         var charset = _options.Charset?.Trim();

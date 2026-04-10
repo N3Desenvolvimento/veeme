@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Dapper;
 using Veeme.Contracts;
+using Veeme.Utils;
 
 namespace Veeme.Services;
 
@@ -57,34 +58,63 @@ public sealed class ProdutoService : IProdutoService
         var command = new CommandDefinition(sql, parameters, cancellationToken: cancellationToken);
 
         var rows = await connection.QueryAsync(command);
-        return MapToDictionaries(rows);
+        return DbRowMapper.MapToDictionaries(rows);
     }
 
-    private static IReadOnlyList<Dictionary<string, object?>> MapToDictionaries(
-        IEnumerable<dynamic> rows
+    public async Task<Dictionary<string, object?>?> GetDetalheAsync(
+        int codigoProduto,
+        CancellationToken cancellationToken
     )
     {
-        var result = new List<Dictionary<string, object?>>();
-
-        foreach (var row in rows)
+        if (codigoProduto <= 0)
         {
-            if (row is IDictionary<string, object> rowDictionary)
-            {
-                var mapped = new Dictionary<string, object?>(
-                    rowDictionary.Count,
-                    StringComparer.OrdinalIgnoreCase
-                );
-                foreach (var pair in rowDictionary)
-                {
-                    mapped[pair.Key] = pair.Value;
-                }
-                result.Add(mapped);
-                continue;
-            }
-
-            result.Add(new Dictionary<string, object?> { ["value"] = row });
+            return null;
         }
 
-        return result;
+        using var connection = _connectionFactory.CreateConnection();
+
+        if (connection is DbConnection dbConnection)
+        {
+            await dbConnection.OpenAsync(cancellationToken);
+        }
+        else
+        {
+            connection.Open();
+        }
+
+        const string sql = """
+            select
+                p.CODIGO_PRODUTO,
+                p.CODIGO_BARRA,
+                p.DESCRICAO,
+                p.UNIDADE,
+                p.LOCALIZACAO,
+                p.REFERENCIA,
+                p.ESTOQUE,
+                p.PRECO_VENDA,
+                p.CODIGO_FABRICANTE,
+                f.DESCRICAO as FABRICANTE_DESCRICAO,
+                p.CODIGO_LINHA,
+                l.DESCRICAO as LINHA_DESCRICAO,
+                p.DEIXAR_VENDER_NEGATIVO
+            from PRODUTOS p
+            left join FABRICANTES f on f.CODIGO_FABRICANTE = p.CODIGO_FABRICANTE
+            left join LINHAS l on l.CODIGO_LINHA = p.CODIGO_LINHA
+            where p.CODIGO_PRODUTO = @codigoProduto
+            """;
+
+        var command = new CommandDefinition(
+            sql,
+            new { codigoProduto },
+            cancellationToken: cancellationToken
+        );
+
+        var row = await connection.QueryFirstOrDefaultAsync(command);
+        if (row is null)
+        {
+            return null;
+        }
+
+        return DbRowMapper.MapToDictionaries(new[] { row }).FirstOrDefault();
     }
 }

@@ -4,6 +4,7 @@
 @implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject IProdutoService ProdutoService
+@inject IEstoqueService EstoqueService
 @inject IJSRuntime JS
 
 <PageTitle>Localizar produtos</PageTitle>
@@ -86,6 +87,12 @@
                                 <div>📦 Estoque: @GetString(row, "ESTOQUE")</div>
                                 <div>💲 Preço: @GetString(row, "PRECO_VENDA")</div>
                             </div>
+                            <div class="vm-card-actions">
+                                <button type="button" class="vm-secondary w-100" @onclick="() => OpenDetalheAsync(row)">
+                                    <span aria-hidden="true">🧾</span>
+                                    <span>Movimentar</span>
+                                </button>
+                            </div>
                         </div>
                     }
                 </div>
@@ -93,6 +100,130 @@
         </div>
     </div>
 </div>
+
+@if (IsDetalheOpen)
+{
+    <div class="vm-modal-backdrop" @onclick="CloseDetalheAsync">
+        <div class="vm-modal" @onclick:stopPropagation="true">
+            <div class="vm-modal-header">
+                <div class="vm-modal-title">
+                    <span aria-hidden="true">📦</span>
+                    <span>Produto</span>
+                </div>
+                <button type="button" class="vm-icon-button" @onclick="CloseDetalheAsync" aria-label="Fechar">✕</button>
+            </div>
+
+            @if (IsDetalheLoading)
+            {
+                <div class="vm-muted small">Carregando...</div>
+            }
+            else if (!string.IsNullOrWhiteSpace(DetalheError))
+            {
+                <div class="vm-error small">@DetalheError</div>
+            }
+            else if (Detalhe is null)
+            {
+                <div class="vm-muted small">Produto não encontrado.</div>
+            }
+            else
+            {
+                <div class="vm-detail-block">
+                    <div class="vm-detail-title">@GetString(Detalhe, "DESCRICAO")</div>
+                    <div class="vm-detail-grid">
+                        <div>🏷 Código: @GetString(Detalhe, "CODIGO_PRODUTO")</div>
+                        <div>🔢 EAN: @GetString(Detalhe, "CODIGO_BARRA")</div>
+                        <div>📦 Estoque: @GetString(Detalhe, "ESTOQUE")</div>
+                        <div>💲 Preço: @GetString(Detalhe, "PRECO_VENDA")</div>
+                        <div>🏭 Fabricante: @GetString(Detalhe, "FABRICANTE_DESCRICAO")</div>
+                        <div>🧩 Linha: @GetString(Detalhe, "LINHA_DESCRICAO")</div>
+                        <div>📍 Local: @GetString(Detalhe, "LOCALIZACAO")</div>
+                        <div>🏷 Ref: @GetString(Detalhe, "REFERENCIA")</div>
+                        <div>📏 Unid: @GetString(Detalhe, "UNIDADE")</div>
+                    </div>
+                </div>
+
+                <div class="vm-divider"></div>
+
+                <div class="vm-move-block">
+                    <div class="vm-section-title">Movimentação</div>
+
+                    <div class="vm-field-row">
+                        <div class="vm-move-row">
+                            <select class="form-select form-select-sm vm-input vm-modal-input"
+                                    @bind="MovimentoTipo"
+                                    disabled="@IsMovimentarLoading">
+                                <option value="E">Entrada (+)</option>
+                                <option value="S">Saída (-)</option>
+                            </select>
+
+                            <input class="form-control form-control-sm vm-input vm-modal-input"
+                                   type="number"
+                                   inputmode="decimal"
+                                   min="0"
+                                   step="1"
+                                   placeholder="Quantidade"
+                                   @bind="MovimentoQuantidade"
+                                   disabled="@IsMovimentarLoading" />
+                        </div>
+
+                        <textarea class="form-control form-control-sm vm-input vm-modal-input vm-modal-motivo"
+                                  rows="2"
+                                  placeholder="Motivo (opcional)"
+                                  @bind="MovimentoMotivo"
+                                  disabled="@IsMovimentarLoading"></textarea>
+
+                        <button type="button"
+                                class="vm-primary w-100"
+                                @onclick="ConfirmarMovimentacaoAsync"
+                                disabled="@(!PodeMovimentar)">
+                            <span aria-hidden="true">✅</span>
+                            <span>Confirmar</span>
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(MovimentarError))
+                    {
+                        <div class="vm-error small">@MovimentarError</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(MovimentarOk))
+                    {
+                        <div class="vm-muted small">@MovimentarOk</div>
+                    }
+                </div>
+
+                <div class="vm-divider"></div>
+
+                <div class="vm-history-block">
+                    <div class="vm-section-title">Últimas 10 movimentações</div>
+                    @if (Movimentacoes.Count == 0)
+                    {
+                        <div class="vm-muted small">Sem movimentações.</div>
+                    }
+                    else
+                    {
+                        <div class="vm-history-list">
+                            @foreach (var mov in Movimentacoes)
+                            {
+                                <div class="vm-history-row">
+                                    <div class="vm-history-main">
+                                        <div class="vm-history-type">@FormatTipo(GetString(mov, "TIPO"))</div>
+                                        <div class="vm-history-qty">Qtd: @GetString(mov, "QTDE_INFORMADA")</div>
+                                    </div>
+                                    <div class="vm-history-meta">
+                                        <div>@GetString(mov, "DATA") @GetString(mov, "HORA")</div>
+                                        <div>Saldo: @GetString(mov, "SALDO_ANTERIOR") → @GetString(mov, "SALDO_FINAL")</div>
+                                        <div>@GetString(mov, "USUARIO")</div>
+                                        <div>@GetString(mov, "MOTIVO")</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
 
 @code {
     private string? Nome { get; set; }
@@ -131,6 +262,27 @@
     private string? Error { get; set; }
     private IReadOnlyList<Dictionary<string, object?>> Results { get; set; } = Array.Empty<Dictionary<string, object?>>();
     private CancellationTokenSource? _cts;
+    private bool IsDetalheOpen { get; set; }
+    private bool IsDetalheLoading { get; set; }
+    private string? DetalheError { get; set; }
+    private Dictionary<string, object?>? Detalhe { get; set; }
+    private IReadOnlyList<Dictionary<string, object?>> Movimentacoes { get; set; } = Array.Empty<Dictionary<string, object?>>();
+    private int? DetalheCodigoProduto { get; set; }
+    private CancellationTokenSource? _detalheCts;
+    private bool IsMovimentarLoading { get; set; }
+    private string MovimentoTipo { get; set; } = "S";
+    private decimal MovimentoQuantidade { get; set; }
+    private string? MovimentoMotivo { get; set; }
+    private string? MovimentarError { get; set; }
+    private string? MovimentarOk { get; set; }
+
+    private bool PodeMovimentar =>
+        IsDetalheOpen
+        && !IsDetalheLoading
+        && !IsMovimentarLoading
+        && DetalheCodigoProduto is not null
+        && MovimentoQuantidade > 0
+        && (MovimentoTipo == "E" || MovimentoTipo == "S");
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -210,7 +362,7 @@
         finally
         {
             IsLoading = false;
-            _shouldFocusBarcode = true;
+            _shouldFocusBarcode = !IsDetalheOpen;
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -283,12 +435,174 @@
         return null;
     }
 
+    private async Task OpenDetalheAsync(Dictionary<string, object?> row)
+    {
+        if (!TryGetInt32(row, "CODIGO_PRODUTO", out var codigoProduto))
+        {
+            return;
+        }
+
+        DetalheCodigoProduto = codigoProduto;
+        IsDetalheOpen = true;
+        DetalheError = null;
+        Detalhe = null;
+        Movimentacoes = Array.Empty<Dictionary<string, object?>>();
+        MovimentoTipo = "S";
+        MovimentoQuantidade = 0;
+        MovimentoMotivo = null;
+        MovimentarError = null;
+        MovimentarOk = null;
+        _shouldFocusBarcode = false;
+
+        await StopScannerAsync();
+        await InvokeAsync(StateHasChanged);
+
+        _detalheCts?.Cancel();
+        _detalheCts?.Dispose();
+        _detalheCts = new CancellationTokenSource();
+
+        await LoadDetalheAsync(codigoProduto, _detalheCts.Token);
+    }
+
+    private async Task LoadDetalheAsync(int codigoProduto, CancellationToken cancellationToken)
+    {
+        IsDetalheLoading = true;
+        DetalheError = null;
+
+        try
+        {
+            var detalheTask = ProdutoService.GetDetalheAsync(codigoProduto, cancellationToken);
+            var movTask = EstoqueService.GetUltimasMovimentacoesAsync(codigoProduto, 10, cancellationToken);
+            await Task.WhenAll(detalheTask, movTask);
+
+            Detalhe = await detalheTask;
+            Movimentacoes = await movTask;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            DetalheError = ex.Message;
+        }
+        finally
+        {
+            IsDetalheLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CloseDetalheAsync()
+    {
+        IsDetalheOpen = false;
+        IsDetalheLoading = false;
+        DetalheError = null;
+        Detalhe = null;
+        Movimentacoes = Array.Empty<Dictionary<string, object?>>();
+        DetalheCodigoProduto = null;
+        MovimentarError = null;
+        MovimentarOk = null;
+        IsMovimentarLoading = false;
+
+        _detalheCts?.Cancel();
+        _detalheCts?.Dispose();
+        _detalheCts = null;
+
+        await StartScannerAsync();
+        _shouldFocusBarcode = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConfirmarMovimentacaoAsync()
+    {
+        if (!PodeMovimentar || DetalheCodigoProduto is null)
+        {
+            return;
+        }
+
+        MovimentarError = null;
+        MovimentarOk = null;
+        IsMovimentarLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await EstoqueService.MovimentarEstoqueAsync(
+                DetalheCodigoProduto.Value,
+                MovimentoTipo,
+                MovimentoQuantidade,
+                MovimentoMotivo,
+                CancellationToken.None
+            );
+
+            MovimentarOk = "Movimentação registrada.";
+            await LoadDetalheAsync(DetalheCodigoProduto.Value, CancellationToken.None);
+            await Search();
+        }
+        catch (Exception ex)
+        {
+            MovimentarError = ex.Message;
+        }
+        finally
+        {
+            IsMovimentarLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StopScannerAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("vmScanner.stop");
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool TryGetInt32(Dictionary<string, object?> row, string key, out int value)
+    {
+        value = 0;
+        if (!row.TryGetValue(key, out var raw) || raw is null || raw is DBNull)
+        {
+            return false;
+        }
+
+        if (raw is int i)
+        {
+            value = i;
+            return true;
+        }
+
+        if (int.TryParse(raw.ToString(), out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string FormatTipo(string? tipo)
+    {
+        tipo = (tipo ?? string.Empty).Trim().ToUpperInvariant();
+        return tipo switch
+        {
+            "E" => "Entrada",
+            "S" => "Saída",
+            _ => tipo
+        };
+    }
+
     public async ValueTask DisposeAsync()
     {
         _cts?.Cancel();
         _cts?.Dispose();
         _autoSearchCts?.Cancel();
         _autoSearchCts?.Dispose();
+        _detalheCts?.Cancel();
+        _detalheCts?.Dispose();
 
         try
         {

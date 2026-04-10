@@ -7,4 +7,9 @@ public interface IProdutoService
         string? codigoBarras,
         CancellationToken cancellationToken
     );
+
+    Task<Dictionary<string, object?>?> GetDetalheAsync(
+        int codigoProduto,
+        CancellationToken cancellationToken
+    );
 }

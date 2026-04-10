@@ -1,0 +1,369 @@
+@page "/produtos/localizar"
+@rendermode InteractiveServer
+@using Veeme.Contracts
+@implements IAsyncDisposable
+@inject NavigationManager Navigation
+@inject IProdutoService ProdutoService
+@inject IJSRuntime JS
+
+<PageTitle>Localizar produtos</PageTitle>
+
+<div class="vm-page">
+    <div class="vm-compact-header">
+        <button type="button" class="vm-icon-button" @onclick="GoBack" aria-label="Voltar">←</button>
+        <div class="vm-header-center">
+            <span class="vm-header-icon" aria-hidden="true">🔎</span>
+            <span class="vm-title">Localizar</span>
+        </div>
+        <span></span>
+    </div>
+
+    <div class="vm-content vm-content--fixed">
+        <div class="vm-search-panel">
+            <div class="vm-field-row">
+                <div class="vm-input-with-icon">
+                    <span class="vm-input-icon" aria-hidden="true">🧾</span>
+                    <input class="form-control form-control-sm vm-input"
+                           placeholder="Descrição (opcional)"
+                           @bind="Nome"
+                           @bind:event="oninput"
+                           @onkeydown="OnNomeKeyDown" />
+                </div>
+
+                <div class="vm-input-with-icon">
+                    <span class="vm-input-icon" aria-hidden="true">📷</span>
+                    <input class="form-control form-control-sm vm-input"
+                           placeholder="Código de barras (scanner)"
+                           inputmode="numeric"
+                           autofocus
+                           @bind="CodigoBarras"
+                           @bind:event="oninput"
+                           @ref="CodigoBarrasInput"
+                           @onkeydown="OnCodigoBarrasKeyDown" />
+                </div>
+
+                <button type="button" class="vm-primary w-100" @onclick="Search">
+                    <span aria-hidden="true">🔎</span>
+                    <span>Buscar</span>
+                </button>
+            </div>
+
+            <div class="vm-status">
+                @if (IsLoading)
+                {
+                    <div class="vm-muted small">Buscando...</div>
+                }
+                else if (!string.IsNullOrWhiteSpace(Error))
+                {
+                    <div class="vm-error small">@Error</div>
+                }
+                else if (!HasSearched)
+                {
+                    <div class="vm-muted small">Bipe um produto para preencher o código de barras e buscar automaticamente, ou use Buscar.</div>
+                }
+                else if (Results.Count == 0)
+                {
+                    <div class="vm-muted small">Nenhum resultado.</div>
+                }
+                else
+                {
+                    <div class="vm-muted small">Resultados: @Results.Count</div>
+                }
+            </div>
+        </div>
+
+        <div class="vm-results-scroll">
+            @if (!IsLoading && string.IsNullOrWhiteSpace(Error) && Results.Count > 0)
+            {
+                <div class="vm-results">
+                    @foreach (var row in Results)
+                    {
+                        <div class="vm-result-card">
+                            <p class="vm-result-title">@GetString(row, "DESCRICAO")</p>
+                            <div class="vm-result-meta">
+                                <div>🏷 Código: @GetString(row, "CODIGO_PRODUTO")</div>
+                                <div>🔢 EAN: @GetString(row, "CODIGO_BARRA")</div>
+                                <div>📦 Estoque: @GetString(row, "ESTOQUE")</div>
+                                <div>💲 Preço: @GetString(row, "PRECO_VENDA")</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? Nome { get; set; }
+    private ElementReference CodigoBarrasInput { get; set; }
+    private DotNetObjectReference<ProdutosLocalizar>? _scannerObjectReference;
+    private bool _shouldFocusBarcode;
+    private bool _suppressAutoSearch;
+    private CancellationTokenSource? _autoSearchCts;
+    private string? _codigoBarras;
+    private string? CodigoBarras
+    {
+        get => _codigoBarras;
+        set
+        {
+            if (string.Equals(_codigoBarras, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _codigoBarras = value;
+
+            if (_suppressAutoSearch)
+            {
+                return;
+            }
+
+            if (ShouldAutoSearchCodigoBarras(_codigoBarras))
+            {
+                _ = TriggerAutoSearchAsync();
+            }
+        }
+    }
+
+    private bool IsLoading { get; set; }
+    private bool HasSearched { get; set; }
+    private string? Error { get; set; }
+    private IReadOnlyList<Dictionary<string, object?>> Results { get; set; } = Array.Empty<Dictionary<string, object?>>();
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await CodigoBarrasInput.FocusAsync();
+            await StartScannerAsync();
+        }
+        else if (_shouldFocusBarcode)
+        {
+            _shouldFocusBarcode = false;
+            await CodigoBarrasInput.FocusAsync();
+        }
+    }
+
+    private async Task StartScannerAsync()
+    {
+        _scannerObjectReference?.Dispose();
+        _scannerObjectReference = DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeVoidAsync("vmScanner.start", _scannerObjectReference);
+        }
+        catch
+        {
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task OnCodigoBarrasKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Search();
+        }
+    }
+
+    private async Task OnNomeKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _suppressAutoSearch = true;
+            CodigoBarras = null;
+            _suppressAutoSearch = false;
+            await Search();
+        }
+    }
+
+    private async Task Search()
+    {
+        Error = null;
+        HasSearched = true;
+        IsLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            Results = await ProdutoService.SearchAsync(Nome, CodigoBarras, _cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Results = Array.Empty<Dictionary<string, object?>>();
+            Error = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+            _shouldFocusBarcode = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnScannerBarcode(string barcode)
+    {
+        var value = (barcode ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        await InvokeAsync(
+            async () =>
+            {
+                _suppressAutoSearch = true;
+                Nome = null;
+                CodigoBarras = value;
+                _suppressAutoSearch = false;
+
+                _shouldFocusBarcode = true;
+                StateHasChanged();
+                await Task.Yield();
+                await Search();
+            }
+        );
+    }
+
+    private static bool ShouldAutoSearchCodigoBarras(string? codigoBarras)
+    {
+        if (string.IsNullOrWhiteSpace(codigoBarras))
+        {
+            return false;
+        }
+
+        var value = codigoBarras.Trim();
+
+        if (value.Length < 8)
+        {
+            return false;
+        }
+
+        return value.All(char.IsDigit);
+    }
+
+    private async Task TriggerAutoSearchAsync()
+    {
+        _autoSearchCts?.Cancel();
+        _autoSearchCts?.Dispose();
+        _autoSearchCts = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(250, _autoSearchCts.Token);
+            await InvokeAsync(Search);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static string? GetString(Dictionary<string, object?> row, string key)
+    {
+        if (row.TryGetValue(key, out var value))
+        {
+            return value?.ToString();
+        }
+
+        return null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _autoSearchCts?.Cancel();
+        _autoSearchCts?.Dispose();
+
+        try
+        {
+            await JS.InvokeVoidAsync("vmScanner.stop");
+        }
+        catch
+        {
+        }
+
+        _scannerObjectReference?.Dispose();
+    }
+}
+
+<script>
+    window.vmScanner = window.vmScanner || (() => {
+        let handler = null;
+        let buffer = "";
+        let lastKeyTime = 0;
+        let dotnetRef = null;
+
+        const isDigit = (key) => key.length === 1 && key >= "0" && key <= "9";
+
+        const reset = () => {
+            buffer = "";
+            lastKeyTime = 0;
+        };
+
+        const start = (ref) => {
+            stop();
+            dotnetRef = ref;
+            reset();
+
+            handler = (e) => {
+                const now = performance.now();
+                const delta = lastKeyTime === 0 ? 0 : now - lastKeyTime;
+                lastKeyTime = now;
+
+                if (delta > 250) {
+                    buffer = "";
+                }
+
+                if (isDigit(e.key)) {
+                    buffer += e.key;
+                    return;
+                }
+
+                if (e.key === "Enter") {
+                    const value = buffer.trim();
+                    reset();
+
+                    if (value.length >= 8 && /^\d+$/.test(value)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dotnetRef) {
+                            dotnetRef.invokeMethodAsync("OnScannerBarcode", value);
+                        }
+                    }
+                    return;
+                }
+
+                reset();
+            };
+
+            window.addEventListener("keydown", handler, true);
+        };
+
+        const stop = () => {
+            if (handler) {
+                window.removeEventListener("keydown", handler, true);
+            }
+            handler = null;
+            dotnetRef = null;
+            reset();
+        };
+
+        return { start, stop };
+    })();
+</script>

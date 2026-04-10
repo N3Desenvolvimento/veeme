@@ -1,7 +1,39 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Estoque</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="vm-screen">
+    <h1 class="vm-title">Estoque</h1>
+    <p class="vm-subtitle">Gerenciamento de estoque</p>
 
-Welcome to your new app.
+    <div class="vm-menu-grid">
+        <NavLink class="vm-menu-button" href="produtos/localizar" Match="NavLinkMatch.All">
+            <div class="vm-menu-button-row">
+                <span class="vm-menu-icon" aria-hidden="true">🔎</span>
+                <p class="vm-menu-button-title">Localizar produtos</p>
+            </div>
+            <p class="vm-menu-button-desc">Descrição ou código de barras</p>
+        </NavLink>
+
+        <button class="vm-menu-button vm-menu-button--disabled" type="button" disabled>
+            <div class="vm-menu-button-row">
+                <span class="vm-menu-icon" aria-hidden="true">②</span>
+                <p class="vm-menu-button-title">Opção 2</p>
+            </div>
+        </button>
+
+        <button class="vm-menu-button vm-menu-button--disabled" type="button" disabled>
+            <div class="vm-menu-button-row">
+                <span class="vm-menu-icon" aria-hidden="true">③</span>
+                <p class="vm-menu-button-title">Opção 3</p>
+            </div>
+        </button>
+
+        <button class="vm-menu-button vm-menu-button--disabled" type="button" disabled>
+            <div class="vm-menu-button-row">
+                <span class="vm-menu-icon" aria-hidden="true">④</span>
+                <p class="vm-menu-button-title">Opção 4</p>
+            </div>
+        </button>
+    </div>
+</div>

@@ -1,0 +1,28 @@
+@page "/inventario"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>Inventário</PageTitle>
+
+<div class="vm-compact-header">
+    <button type="button" class="vm-icon-button" @onclick="GoBack" aria-label="Voltar">←</button>
+    <div class="vm-header-center">
+        <span class="vm-header-icon" aria-hidden="true">🧮</span>
+        <span class="vm-title">Inventário</span>
+    </div>
+    <span></span>
+</div>
+
+<div class="vm-content">
+    <div class="vm-placeholder">
+        <div class="vm-placeholder-icon" aria-hidden="true">🧮</div>
+        <div class="vm-muted small">Em desenvolvimento.</div>
+    </div>
+</div>
+
+@code {
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

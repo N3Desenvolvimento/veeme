@@ -12,6 +12,9 @@ builder
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 builder.Services.Configure<FirebirdDatabaseOptions>(
     builder.Configuration.GetSection(FirebirdDatabaseOptions.SectionName)
 );
@@ -25,6 +28,8 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 else
 {

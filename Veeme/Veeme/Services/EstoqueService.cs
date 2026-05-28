@@ -135,14 +135,14 @@ public sealed class EstoqueService : IEstoqueService
                 )
             );
 
-            await connection.ExecuteAsync(
-                new CommandDefinition(
-                    "update PRODUTOS set ESTOQUE = @estoqueAtual, DATA_HORA_ALT = CURRENT_TIMESTAMP where CODIGO_PRODUTO = @codigoProduto",
-                    new { estoqueAtual, codigoProduto },
-                    transaction: transaction,
-                    cancellationToken: cancellationToken
-                )
-            );
+            //await connection.ExecuteAsync(
+            //    new CommandDefinition(
+            //        "update PRODUTOS set ESTOQUE = @estoqueAtual, DATA_HORA_ALT = CURRENT_TIMESTAMP where CODIGO_PRODUTO = @codigoProduto",
+            //        new { estoqueAtual, codigoProduto },
+            //        transaction: transaction,
+            //        cancellationToken: cancellationToken
+            //    )
+            //);
 
             await connection.ExecuteAsync(
                 new CommandDefinition(

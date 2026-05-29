@@ -129,7 +129,7 @@ public sealed class EstoqueService : IEstoqueService
 
             var codigoAjuste = await connection.ExecuteScalarAsync<int>(
                 new CommandDefinition(
-                    "select coalesce(max(CODIGO_AJUSTE), 0) + 1 from AJUSTES_ESTOQUE",
+                    "select cast(gen_id(GEN_AJUSTES_ESTOQUE, 1) as integer) from rdb$database",
                     transaction: transaction,
                     cancellationToken: cancellationToken
                 )
